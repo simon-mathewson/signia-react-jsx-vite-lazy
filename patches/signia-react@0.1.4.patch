@@ -1,0 +1,183 @@
+diff --git a/dist/cjs/track.cjs b/dist/cjs/track.cjs
+index 09376e0d2ea43f50e7c8ede09ea8ebeb73d88711..f0b42764419e780e0a0aad38e312b21bfd71ff9c 100644
+--- a/dist/cjs/track.cjs
++++ b/dist/cjs/track.cjs
+@@ -22,6 +22,7 @@ var track_exports = {};
+ __export(track_exports, {
+   ProxyHandlers: () => ProxyHandlers,
+   ReactForwardRefSymbol: () => ReactForwardRefSymbol,
++  ReactLazySymbol: () => ReactLazySymbol,
+   ReactMemoSymbol: () => ReactMemoSymbol,
+   track: () => track
+ });
+@@ -47,6 +48,7 @@ var ProxyHandlers = {
+     );
+   }
+ };
++var ReactLazySymbol = Symbol.for("react.lazy");
+ var ReactMemoSymbol = Symbol.for("react.memo");
+ var ReactForwardRefSymbol = Symbol.for("react.forward_ref");
+ function track(baseComponent) {
+@@ -59,6 +61,19 @@ function track(baseComponent) {
+   if ($$typeof === ReactForwardRefSymbol) {
+     return (0, import_react.memo)((0, import_react.forwardRef)(new Proxy(baseComponent.render, ProxyHandlers)));
+   }
++  if ($$typeof === ReactLazySymbol) {
++    let result;
++    return (0, import_react.memo)(
++      (0, import_react.lazy)(() => {
++        if (!result) {
++          const { _init: init, _payload: payload } = baseComponent;
++          const loaded = init(payload);
++          result = new Proxy(loaded, ProxyHandlers);
++        }
++        return Promise.resolve({ default: result });
++      })
++    );
++  }
+   return (0, import_react.memo)(new Proxy(baseComponent, ProxyHandlers), compare);
+ }
+ //# sourceMappingURL=track.cjs.map
+diff --git a/dist/cjs/track.cjs.map b/dist/cjs/track.cjs.map
+index 8342d591316119e0bc9f4a02b43107b2601efacf..599b62b4a741a5b28c0c5e890bee0ccba8198f89 100644
+--- a/dist/cjs/track.cjs.map
++++ b/dist/cjs/track.cjs.map
+@@ -1,7 +1,7 @@
+ {
+   "version": 3,
+   "sources": ["../../src/track.ts"],
+-  "sourcesContent": ["import React, { forwardRef, FunctionComponent, memo } from 'react'\nimport { useStateTracking } from './useStateTracking.js'\n\nexport const ProxyHandlers = {\n\t/**\n\t * This is a function call trap for functional components. When this is called, we know it means\n\t * React did run 'Component()', that means we can use any hooks here to setup our effect and\n\t * store.\n\t *\n\t * With the native Proxy, all other calls such as access/setting to/of properties will be\n\t * forwarded to the target Component, so we don't need to copy the Component's own or inherited\n\t * properties.\n\t *\n\t * @see https://github.com/facebook/react/blob/2d80a0cd690bb5650b6c8a6c079a87b5dc42bd15/packages/react-reconciler/src/ReactFiberHooks.old.js#L460\n\t */\n\tapply(Component: FunctionComponent, thisArg: any, argumentsList: any) {\n\t\treturn useStateTracking(Component.displayName ?? Component.name ?? 'tracked(???)', () =>\n\t\t\tComponent.apply(thisArg, argumentsList)\n\t\t)\n\t},\n}\n\nexport const ReactMemoSymbol = Symbol.for('react.memo')\nexport const ReactForwardRefSymbol = Symbol.for('react.forward_ref')\n\n/**\n * Returns a tracked version of the given component.\n * Any signals whose values are read while the component renders will be tracked.\n * If any of the tracked signals change later it will cause the component to re-render.\n *\n * This also wraps the component in a React.memo() call, so it will only re-render if the props change.\n *\n * @example\n * ```ts\n * const Counter = track(function Counter(props: CounterProps) {\n *   const count = useAtom('count', 0)\n *   const increment = useCallback(() => count.set(count.value + 1), [count])\n *   return <button onClick={increment}>{count.value}</button>\n * })\n * ```\n *\n * @param baseComponent\n * @public\n */\nexport function track<T extends FunctionComponent<any>>(\n\tbaseComponent: T\n): T extends React.MemoExoticComponent<any> ? T : React.MemoExoticComponent<T> {\n\tlet compare = null\n\tconst $$typeof = baseComponent['$$typeof' as keyof typeof baseComponent]\n\tif ($$typeof === ReactMemoSymbol) {\n\t\tbaseComponent = (baseComponent as any).type\n\t\tcompare = (baseComponent as any).compare\n\t}\n\tif ($$typeof === ReactForwardRefSymbol) {\n\t\treturn memo(forwardRef(new Proxy((baseComponent as any).render, ProxyHandlers) as any)) as any\n\t}\n\n\treturn memo(new Proxy(baseComponent, ProxyHandlers) as any, compare) as any\n}\n"],
+-  "mappings": ";;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,mBAA2D;AAC3D,8BAAiC;AAE1B,IAAM,gBAAgB;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,EAY5B,MAAM,WAA8B,SAAc,eAAoB;AACrE,eAAO;AAAA,MAAiB,UAAU,eAAe,UAAU,QAAQ;AAAA,MAAgB,MAClF,UAAU,MAAM,SAAS,aAAa;AAAA,IACvC;AAAA,EACD;AACD;AAEO,IAAM,kBAAkB,OAAO,IAAI,YAAY;AAC/C,IAAM,wBAAwB,OAAO,IAAI,mBAAmB;AAqB5D,SAAS,MACf,eAC8E;AAC9E,MAAI,UAAU;AACd,QAAM,WAAW,cAAc,UAAwC;AACvE,MAAI,aAAa,iBAAiB;AACjC,oBAAiB,cAAsB;AACvC,cAAW,cAAsB;AAAA,EAClC;AACA,MAAI,aAAa,uBAAuB;AACvC,eAAO,uBAAK,yBAAW,IAAI,MAAO,cAAsB,QAAQ,aAAa,CAAQ,CAAC;AAAA,EACvF;AAEA,aAAO,mBAAK,IAAI,MAAM,eAAe,aAAa,GAAU,OAAO;AACpE;",
++  "sourcesContent": ["import React, { forwardRef, FunctionComponent, lazy, LazyExoticComponent, memo } from 'react'\nimport { useStateTracking } from './useStateTracking.js'\n\nexport const ProxyHandlers = {\n\t/**\n\t * This is a function call trap for functional components. When this is called, we know it means\n\t * React did run 'Component()', that means we can use any hooks here to setup our effect and\n\t * store.\n\t *\n\t * With the native Proxy, all other calls such as access/setting to/of properties will be\n\t * forwarded to the target Component, so we don't need to copy the Component's own or inherited\n\t * properties.\n\t *\n\t * @see https://github.com/facebook/react/blob/2d80a0cd690bb5650b6c8a6c079a87b5dc42bd15/packages/react-reconciler/src/ReactFiberHooks.old.js#L460\n\t */\n\tapply(Component: FunctionComponent, thisArg: any, argumentsList: any) {\n\t\treturn useStateTracking(Component.displayName ?? Component.name ?? 'tracked(???)', () =>\n\t\t\tComponent.apply(thisArg, argumentsList)\n\t\t)\n\t},\n}\n\nexport const ReactLazySymbol = Symbol.for('react.lazy')\nexport const ReactMemoSymbol = Symbol.for('react.memo')\nexport const ReactForwardRefSymbol = Symbol.for('react.forward_ref')\n\ninterface LazyFunctionComponent<T extends FunctionComponent<any>> extends LazyExoticComponent<T> {\n\t_init: (arg: unknown) => FunctionComponent\n\t_payload: { status: number; _result: FunctionComponent }\n}\n\n/**\n * Returns a tracked version of the given component.\n * Any signals whose values are read while the component renders will be tracked.\n * If any of the tracked signals change later it will cause the component to re-render.\n *\n * This also wraps the component in a React.memo() call, so it will only re-render if the props change.\n *\n * @example\n * ```ts\n * const Counter = track(function Counter(props: CounterProps) {\n *   const count = useAtom('count', 0)\n *   const increment = useCallback(() => count.set(count.value + 1), [count])\n *   return <button onClick={increment}>{count.value}</button>\n * })\n * ```\n *\n * @param baseComponent\n * @public\n */\nexport function track<T extends FunctionComponent<any>>(\n\tbaseComponent: T\n): T extends React.MemoExoticComponent<any> ? T : React.MemoExoticComponent<T> {\n\tlet compare = null\n\tconst $$typeof = baseComponent['$$typeof' as keyof typeof baseComponent]\n\tif ($$typeof === ReactMemoSymbol) {\n\t\tbaseComponent = (baseComponent as any).type\n\t\tcompare = (baseComponent as any).compare\n\t}\n\tif ($$typeof === ReactForwardRefSymbol) {\n\t\treturn memo(forwardRef(new Proxy((baseComponent as any).render, ProxyHandlers) as any)) as any\n\t}\n\tif ($$typeof === ReactLazySymbol) {\n\t\tlet result: undefined | FunctionComponent\n\n\t\treturn memo(\n\t\t\tlazy(() => {\n\t\t\t\tif (!result) {\n\t\t\t\t\tconst { _init: init, _payload: payload } =\n\t\t\t\t\t\tbaseComponent as unknown as LazyFunctionComponent<any>\n\t\t\t\t\tconst loaded = init(payload)\n\t\t\t\t\tresult = new Proxy(loaded, ProxyHandlers)\n\t\t\t\t}\n\t\t\t\treturn Promise.resolve({ default: result })\n\t\t\t})\n\t\t) as any\n\t}\n\n\treturn memo(new Proxy(baseComponent, ProxyHandlers) as any, compare) as any\n}\n"],
++  "mappings": ";;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,mBAAsF;AACtF,8BAAiC;AAE1B,IAAM,gBAAgB;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,EAY5B,MAAM,WAA8B,SAAc,eAAoB;AACrE,eAAO;AAAA,MAAiB,UAAU,eAAe,UAAU,QAAQ;AAAA,MAAgB,MAClF,UAAU,MAAM,SAAS,aAAa;AAAA,IACvC;AAAA,EACD;AACD;AAEO,IAAM,kBAAkB,OAAO,IAAI,YAAY;AAC/C,IAAM,kBAAkB,OAAO,IAAI,YAAY;AAC/C,IAAM,wBAAwB,OAAO,IAAI,mBAAmB;AA0B5D,SAAS,MACf,eAC8E;AAC9E,MAAI,UAAU;AACd,QAAM,WAAW,cAAc,UAAwC;AACvE,MAAI,aAAa,iBAAiB;AACjC,oBAAiB,cAAsB;AACvC,cAAW,cAAsB;AAAA,EAClC;AACA,MAAI,aAAa,uBAAuB;AACvC,eAAO,uBAAK,yBAAW,IAAI,MAAO,cAAsB,QAAQ,aAAa,CAAQ,CAAC;AAAA,EACvF;AACA,MAAI,aAAa,iBAAiB;AACjC,QAAI;AAEJ,eAAO;AAAA,UACN,mBAAK,MAAM;AACV,YAAI,CAAC,QAAQ;AACZ,gBAAM,EAAE,OAAO,MAAM,UAAU,QAAQ,IACtC;AACD,gBAAM,SAAS,KAAK,OAAO;AAC3B,mBAAS,IAAI,MAAM,QAAQ,aAAa;AAAA,QACzC;AACA,eAAO,QAAQ,QAAQ,EAAE,SAAS,OAAO,CAAC;AAAA,MAC3C,CAAC;AAAA,IACF;AAAA,EACD;AAEA,aAAO,mBAAK,IAAI,MAAM,eAAe,aAAa,GAAU,OAAO;AACpE;",
+   "names": []
+ }
+diff --git a/dist/cjs/wrapJsx.cjs b/dist/cjs/wrapJsx.cjs
+index c636c0c41f897341be1bf5bc05c12fe85da0a73e..93dfa74dcf74e2b024520fa64d36daded5f358fb 100644
+--- a/dist/cjs/wrapJsx.cjs
++++ b/dist/cjs/wrapJsx.cjs
+@@ -27,6 +27,7 @@ var import_react = require("react");
+ var import_track = require("./track.cjs");
+ var ReactMemoType = Symbol.for("react.memo");
+ var ReactForwardRefType = Symbol.for("react.forward_ref");
++var ReactLazyType = Symbol.for("react.lazy");
+ var ProxyInstance = /* @__PURE__ */ new WeakMap();
+ function proxyFunctionalComponent(Component2) {
+   const existing = ProxyInstance.get(Component2);
+@@ -47,6 +48,8 @@ function wrapJsx(jsx) {
+         type = proxyFunctionalComponent(type.type);
+       } else if (type.$$typeof === ReactForwardRefType) {
+         type = proxyFunctionalComponent(type);
++      } else if (type.$$typeof === ReactLazyType) {
++        type = proxyFunctionalComponent(type);
+       }
+     }
+     return jsx.call(jsx, type, props, ...rest);
+diff --git a/dist/cjs/wrapJsx.cjs.map b/dist/cjs/wrapJsx.cjs.map
+index 1d477cf00c10aa020c4e3d082f6ee993e642efb2..6f52b3744ad1cd23ce1f3e057f0b471e91c70897 100644
+--- a/dist/cjs/wrapJsx.cjs.map
++++ b/dist/cjs/wrapJsx.cjs.map
+@@ -1,7 +1,7 @@
+ {
+   "version": 3,
+   "sources": ["../../src/wrapJsx.ts"],
+-  "sourcesContent": ["// This file was copied and adapted with thanks from the preactjs/preact repo.\n// https://github.com/preactjs/signals/blob/main/packages/react/src/index.ts\n\n// The MIT License (MIT)\n\n// Copyright (c) 2022-present Preact Team\n\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n\n// The above copyright notice and this permission notice shall be included in all\n// copies or substantial portions of the Software.\n\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n// SOFTWARE.\n\nimport { Component, type FunctionComponent } from 'react'\nimport { track } from './track.js'\n\nconst ReactMemoType = Symbol.for('react.memo') // https://github.com/facebook/react/blob/346c7d4c43a0717302d446da9e7423a8e28d8996/packages/shared/ReactSymbols.js#L30\nconst ReactForwardRefType = Symbol.for('react.forward_ref')\nconst ProxyInstance = new WeakMap<FunctionComponent<any>, FunctionComponent<any>>()\n\nfunction proxyFunctionalComponent(Component: FunctionComponent<any>) {\n\tconst existing = ProxyInstance.get(Component)\n\tif (existing) return existing\n\tconst tracked = track(Component)\n\tProxyInstance.set(Component, tracked)\n\treturn tracked\n}\n\n/** @internal */\nexport function wrapJsx<T>(jsx: T): T {\n\tif (typeof jsx !== 'function') return jsx\n\n\treturn function (type: any, props: any, ...rest: any[]) {\n\t\tif (typeof type === 'function' && !(type instanceof Component)) {\n\t\t\ttype = proxyFunctionalComponent(type)\n\t\t} else if (type && typeof type === 'object') {\n\t\t\tif (type.$$typeof === ReactMemoType) {\n\t\t\t\ttype = proxyFunctionalComponent(type.type)\n\t\t\t} else if (type.$$typeof === ReactForwardRefType) {\n\t\t\t\ttype = proxyFunctionalComponent(type)\n\t\t\t}\n\t\t}\n\n\t\treturn jsx.call(jsx, type, props, ...rest)\n\t} as any as T\n}\n"],
+-  "mappings": ";;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAyBA,mBAAkD;AAClD,mBAAsB;AAEtB,IAAM,gBAAgB,OAAO,IAAI,YAAY;AAC7C,IAAM,sBAAsB,OAAO,IAAI,mBAAmB;AAC1D,IAAM,gBAAgB,oBAAI,QAAwD;AAElF,SAAS,yBAAyBA,YAAmC;AACpE,QAAM,WAAW,cAAc,IAAIA,UAAS;AAC5C,MAAI;AAAU,WAAO;AACrB,QAAM,cAAU,oBAAMA,UAAS;AAC/B,gBAAc,IAAIA,YAAW,OAAO;AACpC,SAAO;AACR;AAGO,SAAS,QAAW,KAAW;AACrC,MAAI,OAAO,QAAQ;AAAY,WAAO;AAEtC,SAAO,SAAU,MAAW,UAAe,MAAa;AACvD,QAAI,OAAO,SAAS,cAAc,EAAE,gBAAgB,yBAAY;AAC/D,aAAO,yBAAyB,IAAI;AAAA,IACrC,WAAW,QAAQ,OAAO,SAAS,UAAU;AAC5C,UAAI,KAAK,aAAa,eAAe;AACpC,eAAO,yBAAyB,KAAK,IAAI;AAAA,MAC1C,WAAW,KAAK,aAAa,qBAAqB;AACjD,eAAO,yBAAyB,IAAI;AAAA,MACrC;AAAA,IACD;AAEA,WAAO,IAAI,KAAK,KAAK,MAAM,OAAO,GAAG,IAAI;AAAA,EAC1C;AACD;",
++  "sourcesContent": ["// This file was copied and adapted with thanks from the preactjs/preact repo.\n// https://github.com/preactjs/signals/blob/main/packages/react/src/index.ts\n\n// The MIT License (MIT)\n\n// Copyright (c) 2022-present Preact Team\n\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n\n// The above copyright notice and this permission notice shall be included in all\n// copies or substantial portions of the Software.\n\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n// SOFTWARE.\n\nimport { Component, type FunctionComponent } from 'react'\nimport { track } from './track.js'\n\nconst ReactMemoType = Symbol.for('react.memo') // https://github.com/facebook/react/blob/346c7d4c43a0717302d446da9e7423a8e28d8996/packages/shared/ReactSymbols.js#L30\nconst ReactForwardRefType = Symbol.for('react.forward_ref')\nconst ReactLazyType = Symbol.for('react.lazy')\nconst ProxyInstance = new WeakMap<FunctionComponent<any>, FunctionComponent<any>>()\n\nfunction proxyFunctionalComponent(Component: FunctionComponent<any>) {\n\tconst existing = ProxyInstance.get(Component)\n\tif (existing) return existing\n\tconst tracked = track(Component)\n\tProxyInstance.set(Component, tracked)\n\treturn tracked\n}\n\n/** @internal */\nexport function wrapJsx<T>(jsx: T): T {\n\tif (typeof jsx !== 'function') return jsx\n\n\treturn function (type: any, props: any, ...rest: any[]) {\n\t\tif (typeof type === 'function' && !(type instanceof Component)) {\n\t\t\ttype = proxyFunctionalComponent(type)\n\t\t} else if (type && typeof type === 'object') {\n\t\t\tif (type.$$typeof === ReactMemoType) {\n\t\t\t\ttype = proxyFunctionalComponent(type.type)\n\t\t\t} else if (type.$$typeof === ReactForwardRefType) {\n\t\t\t\ttype = proxyFunctionalComponent(type)\n\t\t\t} else if (type.$$typeof === ReactLazyType) {\n\t\t\t\ttype = proxyFunctionalComponent(type)\n\t\t\t}\n\t\t}\n\n\t\treturn jsx.call(jsx, type, props, ...rest)\n\t} as any as T\n}\n"],
++  "mappings": ";;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAyBA,mBAAkD;AAClD,mBAAsB;AAEtB,IAAM,gBAAgB,OAAO,IAAI,YAAY;AAC7C,IAAM,sBAAsB,OAAO,IAAI,mBAAmB;AAC1D,IAAM,gBAAgB,OAAO,IAAI,YAAY;AAC7C,IAAM,gBAAgB,oBAAI,QAAwD;AAElF,SAAS,yBAAyBA,YAAmC;AACpE,QAAM,WAAW,cAAc,IAAIA,UAAS;AAC5C,MAAI;AAAU,WAAO;AACrB,QAAM,cAAU,oBAAMA,UAAS;AAC/B,gBAAc,IAAIA,YAAW,OAAO;AACpC,SAAO;AACR;AAGO,SAAS,QAAW,KAAW;AACrC,MAAI,OAAO,QAAQ;AAAY,WAAO;AAEtC,SAAO,SAAU,MAAW,UAAe,MAAa;AACvD,QAAI,OAAO,SAAS,cAAc,EAAE,gBAAgB,yBAAY;AAC/D,aAAO,yBAAyB,IAAI;AAAA,IACrC,WAAW,QAAQ,OAAO,SAAS,UAAU;AAC5C,UAAI,KAAK,aAAa,eAAe;AACpC,eAAO,yBAAyB,KAAK,IAAI;AAAA,MAC1C,WAAW,KAAK,aAAa,qBAAqB;AACjD,eAAO,yBAAyB,IAAI;AAAA,MACrC,WAAW,KAAK,aAAa,eAAe;AAC3C,eAAO,yBAAyB,IAAI;AAAA,MACrC;AAAA,IACD;AAEA,WAAO,IAAI,KAAK,KAAK,MAAM,OAAO,GAAG,IAAI;AAAA,EAC1C;AACD;",
+   "names": ["Component"]
+ }
+diff --git a/dist/esm/track.mjs b/dist/esm/track.mjs
+index 671cccb20f407a8a121992f5541acab3451ba828..054a7c3e7f7a079d7b8eb0adb8fd3c7274911368 100644
+--- a/dist/esm/track.mjs
++++ b/dist/esm/track.mjs
+@@ -1,5 +1,5 @@
+ // src/track.ts
+-import { forwardRef, memo } from "react";
++import { forwardRef, lazy, memo } from "react";
+ import { useStateTracking } from "./useStateTracking.mjs";
+ var ProxyHandlers = {
+   /**
+@@ -20,6 +20,7 @@ var ProxyHandlers = {
+     );
+   }
+ };
++var ReactLazySymbol = Symbol.for("react.lazy");
+ var ReactMemoSymbol = Symbol.for("react.memo");
+ var ReactForwardRefSymbol = Symbol.for("react.forward_ref");
+ function track(baseComponent) {
+@@ -32,11 +33,25 @@ function track(baseComponent) {
+   if ($$typeof === ReactForwardRefSymbol) {
+     return memo(forwardRef(new Proxy(baseComponent.render, ProxyHandlers)));
+   }
++  if ($$typeof === ReactLazySymbol) {
++    let result;
++    return memo(
++      lazy(() => {
++        if (!result) {
++          const { _init: init, _payload: payload } = baseComponent;
++          const loaded = init(payload);
++          result = new Proxy(loaded, ProxyHandlers);
++        }
++        return Promise.resolve({ default: result });
++      })
++    );
++  }
+   return memo(new Proxy(baseComponent, ProxyHandlers), compare);
+ }
+ export {
+   ProxyHandlers,
+   ReactForwardRefSymbol,
++  ReactLazySymbol,
+   ReactMemoSymbol,
+   track
+ };
+diff --git a/dist/esm/track.mjs.map b/dist/esm/track.mjs.map
+index 3369fbc34693e7b1289ad5a5ef20d0e77b9e262c..3653a59767cd61c31e23f69791ceeb2bfe69d72a 100644
+--- a/dist/esm/track.mjs.map
++++ b/dist/esm/track.mjs.map
+@@ -1,7 +1,7 @@
+ {
+   "version": 3,
+   "sources": ["../../src/track.ts"],
+-  "sourcesContent": ["import React, { forwardRef, FunctionComponent, memo } from 'react'\nimport { useStateTracking } from './useStateTracking.js'\n\nexport const ProxyHandlers = {\n\t/**\n\t * This is a function call trap for functional components. When this is called, we know it means\n\t * React did run 'Component()', that means we can use any hooks here to setup our effect and\n\t * store.\n\t *\n\t * With the native Proxy, all other calls such as access/setting to/of properties will be\n\t * forwarded to the target Component, so we don't need to copy the Component's own or inherited\n\t * properties.\n\t *\n\t * @see https://github.com/facebook/react/blob/2d80a0cd690bb5650b6c8a6c079a87b5dc42bd15/packages/react-reconciler/src/ReactFiberHooks.old.js#L460\n\t */\n\tapply(Component: FunctionComponent, thisArg: any, argumentsList: any) {\n\t\treturn useStateTracking(Component.displayName ?? Component.name ?? 'tracked(???)', () =>\n\t\t\tComponent.apply(thisArg, argumentsList)\n\t\t)\n\t},\n}\n\nexport const ReactMemoSymbol = Symbol.for('react.memo')\nexport const ReactForwardRefSymbol = Symbol.for('react.forward_ref')\n\n/**\n * Returns a tracked version of the given component.\n * Any signals whose values are read while the component renders will be tracked.\n * If any of the tracked signals change later it will cause the component to re-render.\n *\n * This also wraps the component in a React.memo() call, so it will only re-render if the props change.\n *\n * @example\n * ```ts\n * const Counter = track(function Counter(props: CounterProps) {\n *   const count = useAtom('count', 0)\n *   const increment = useCallback(() => count.set(count.value + 1), [count])\n *   return <button onClick={increment}>{count.value}</button>\n * })\n * ```\n *\n * @param baseComponent\n * @public\n */\nexport function track<T extends FunctionComponent<any>>(\n\tbaseComponent: T\n): T extends React.MemoExoticComponent<any> ? T : React.MemoExoticComponent<T> {\n\tlet compare = null\n\tconst $$typeof = baseComponent['$$typeof' as keyof typeof baseComponent]\n\tif ($$typeof === ReactMemoSymbol) {\n\t\tbaseComponent = (baseComponent as any).type\n\t\tcompare = (baseComponent as any).compare\n\t}\n\tif ($$typeof === ReactForwardRefSymbol) {\n\t\treturn memo(forwardRef(new Proxy((baseComponent as any).render, ProxyHandlers) as any)) as any\n\t}\n\n\treturn memo(new Proxy(baseComponent, ProxyHandlers) as any, compare) as any\n}\n"],
+-  "mappings": ";AAAA,SAAgB,YAA+B,YAAY;AAC3D,SAAS,wBAAwB;AAE1B,IAAM,gBAAgB;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,EAY5B,MAAM,WAA8B,SAAc,eAAoB;AACrE,WAAO;AAAA,MAAiB,UAAU,eAAe,UAAU,QAAQ;AAAA,MAAgB,MAClF,UAAU,MAAM,SAAS,aAAa;AAAA,IACvC;AAAA,EACD;AACD;AAEO,IAAM,kBAAkB,OAAO,IAAI,YAAY;AAC/C,IAAM,wBAAwB,OAAO,IAAI,mBAAmB;AAqB5D,SAAS,MACf,eAC8E;AAC9E,MAAI,UAAU;AACd,QAAM,WAAW,cAAc,UAAwC;AACvE,MAAI,aAAa,iBAAiB;AACjC,oBAAiB,cAAsB;AACvC,cAAW,cAAsB;AAAA,EAClC;AACA,MAAI,aAAa,uBAAuB;AACvC,WAAO,KAAK,WAAW,IAAI,MAAO,cAAsB,QAAQ,aAAa,CAAQ,CAAC;AAAA,EACvF;AAEA,SAAO,KAAK,IAAI,MAAM,eAAe,aAAa,GAAU,OAAO;AACpE;",
++  "sourcesContent": ["import React, { forwardRef, FunctionComponent, lazy, LazyExoticComponent, memo } from 'react'\nimport { useStateTracking } from './useStateTracking.js'\n\nexport const ProxyHandlers = {\n\t/**\n\t * This is a function call trap for functional components. When this is called, we know it means\n\t * React did run 'Component()', that means we can use any hooks here to setup our effect and\n\t * store.\n\t *\n\t * With the native Proxy, all other calls such as access/setting to/of properties will be\n\t * forwarded to the target Component, so we don't need to copy the Component's own or inherited\n\t * properties.\n\t *\n\t * @see https://github.com/facebook/react/blob/2d80a0cd690bb5650b6c8a6c079a87b5dc42bd15/packages/react-reconciler/src/ReactFiberHooks.old.js#L460\n\t */\n\tapply(Component: FunctionComponent, thisArg: any, argumentsList: any) {\n\t\treturn useStateTracking(Component.displayName ?? Component.name ?? 'tracked(???)', () =>\n\t\t\tComponent.apply(thisArg, argumentsList)\n\t\t)\n\t},\n}\n\nexport const ReactLazySymbol = Symbol.for('react.lazy')\nexport const ReactMemoSymbol = Symbol.for('react.memo')\nexport const ReactForwardRefSymbol = Symbol.for('react.forward_ref')\n\ninterface LazyFunctionComponent<T extends FunctionComponent<any>> extends LazyExoticComponent<T> {\n\t_init: (arg: unknown) => FunctionComponent\n\t_payload: { status: number; _result: FunctionComponent }\n}\n\n/**\n * Returns a tracked version of the given component.\n * Any signals whose values are read while the component renders will be tracked.\n * If any of the tracked signals change later it will cause the component to re-render.\n *\n * This also wraps the component in a React.memo() call, so it will only re-render if the props change.\n *\n * @example\n * ```ts\n * const Counter = track(function Counter(props: CounterProps) {\n *   const count = useAtom('count', 0)\n *   const increment = useCallback(() => count.set(count.value + 1), [count])\n *   return <button onClick={increment}>{count.value}</button>\n * })\n * ```\n *\n * @param baseComponent\n * @public\n */\nexport function track<T extends FunctionComponent<any>>(\n\tbaseComponent: T\n): T extends React.MemoExoticComponent<any> ? T : React.MemoExoticComponent<T> {\n\tlet compare = null\n\tconst $$typeof = baseComponent['$$typeof' as keyof typeof baseComponent]\n\tif ($$typeof === ReactMemoSymbol) {\n\t\tbaseComponent = (baseComponent as any).type\n\t\tcompare = (baseComponent as any).compare\n\t}\n\tif ($$typeof === ReactForwardRefSymbol) {\n\t\treturn memo(forwardRef(new Proxy((baseComponent as any).render, ProxyHandlers) as any)) as any\n\t}\n\tif ($$typeof === ReactLazySymbol) {\n\t\tlet result: undefined | FunctionComponent\n\n\t\treturn memo(\n\t\t\tlazy(() => {\n\t\t\t\tif (!result) {\n\t\t\t\t\tconst { _init: init, _payload: payload } =\n\t\t\t\t\t\tbaseComponent as unknown as LazyFunctionComponent<any>\n\t\t\t\t\tconst loaded = init(payload)\n\t\t\t\t\tresult = new Proxy(loaded, ProxyHandlers)\n\t\t\t\t}\n\t\t\t\treturn Promise.resolve({ default: result })\n\t\t\t})\n\t\t) as any\n\t}\n\n\treturn memo(new Proxy(baseComponent, ProxyHandlers) as any, compare) as any\n}\n"],
++  "mappings": ";AAAA,SAAgB,YAA+B,MAA2B,YAAY;AACtF,SAAS,wBAAwB;AAE1B,IAAM,gBAAgB;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,EAY5B,MAAM,WAA8B,SAAc,eAAoB;AACrE,WAAO;AAAA,MAAiB,UAAU,eAAe,UAAU,QAAQ;AAAA,MAAgB,MAClF,UAAU,MAAM,SAAS,aAAa;AAAA,IACvC;AAAA,EACD;AACD;AAEO,IAAM,kBAAkB,OAAO,IAAI,YAAY;AAC/C,IAAM,kBAAkB,OAAO,IAAI,YAAY;AAC/C,IAAM,wBAAwB,OAAO,IAAI,mBAAmB;AA0B5D,SAAS,MACf,eAC8E;AAC9E,MAAI,UAAU;AACd,QAAM,WAAW,cAAc,UAAwC;AACvE,MAAI,aAAa,iBAAiB;AACjC,oBAAiB,cAAsB;AACvC,cAAW,cAAsB;AAAA,EAClC;AACA,MAAI,aAAa,uBAAuB;AACvC,WAAO,KAAK,WAAW,IAAI,MAAO,cAAsB,QAAQ,aAAa,CAAQ,CAAC;AAAA,EACvF;AACA,MAAI,aAAa,iBAAiB;AACjC,QAAI;AAEJ,WAAO;AAAA,MACN,KAAK,MAAM;AACV,YAAI,CAAC,QAAQ;AACZ,gBAAM,EAAE,OAAO,MAAM,UAAU,QAAQ,IACtC;AACD,gBAAM,SAAS,KAAK,OAAO;AAC3B,mBAAS,IAAI,MAAM,QAAQ,aAAa;AAAA,QACzC;AACA,eAAO,QAAQ,QAAQ,EAAE,SAAS,OAAO,CAAC;AAAA,MAC3C,CAAC;AAAA,IACF;AAAA,EACD;AAEA,SAAO,KAAK,IAAI,MAAM,eAAe,aAAa,GAAU,OAAO;AACpE;",
+   "names": []
+ }
+diff --git a/dist/esm/wrapJsx.mjs b/dist/esm/wrapJsx.mjs
+index e3c85083da8f73e74e2554d2d960dda40c778305..7f11122c6e6d770991cd1962c6887e90b1a72749 100644
+--- a/dist/esm/wrapJsx.mjs
++++ b/dist/esm/wrapJsx.mjs
+@@ -3,6 +3,7 @@ import { Component } from "react";
+ import { track } from "./track.mjs";
+ var ReactMemoType = Symbol.for("react.memo");
+ var ReactForwardRefType = Symbol.for("react.forward_ref");
++var ReactLazyType = Symbol.for("react.lazy");
+ var ProxyInstance = /* @__PURE__ */ new WeakMap();
+ function proxyFunctionalComponent(Component2) {
+   const existing = ProxyInstance.get(Component2);
+@@ -23,6 +24,8 @@ function wrapJsx(jsx) {
+         type = proxyFunctionalComponent(type.type);
+       } else if (type.$$typeof === ReactForwardRefType) {
+         type = proxyFunctionalComponent(type);
++      } else if (type.$$typeof === ReactLazyType) {
++        type = proxyFunctionalComponent(type);
+       }
+     }
+     return jsx.call(jsx, type, props, ...rest);
+diff --git a/dist/esm/wrapJsx.mjs.map b/dist/esm/wrapJsx.mjs.map
+index ec87afe69b290da899abc871182e6007bbbe6202..72112b36d29135e93a64d143164b3b1fe58eafb8 100644
+--- a/dist/esm/wrapJsx.mjs.map
++++ b/dist/esm/wrapJsx.mjs.map
+@@ -1,7 +1,7 @@
+ {
+   "version": 3,
+   "sources": ["../../src/wrapJsx.ts"],
+-  "sourcesContent": ["// This file was copied and adapted with thanks from the preactjs/preact repo.\n// https://github.com/preactjs/signals/blob/main/packages/react/src/index.ts\n\n// The MIT License (MIT)\n\n// Copyright (c) 2022-present Preact Team\n\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n\n// The above copyright notice and this permission notice shall be included in all\n// copies or substantial portions of the Software.\n\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n// SOFTWARE.\n\nimport { Component, type FunctionComponent } from 'react'\nimport { track } from './track.js'\n\nconst ReactMemoType = Symbol.for('react.memo') // https://github.com/facebook/react/blob/346c7d4c43a0717302d446da9e7423a8e28d8996/packages/shared/ReactSymbols.js#L30\nconst ReactForwardRefType = Symbol.for('react.forward_ref')\nconst ProxyInstance = new WeakMap<FunctionComponent<any>, FunctionComponent<any>>()\n\nfunction proxyFunctionalComponent(Component: FunctionComponent<any>) {\n\tconst existing = ProxyInstance.get(Component)\n\tif (existing) return existing\n\tconst tracked = track(Component)\n\tProxyInstance.set(Component, tracked)\n\treturn tracked\n}\n\n/** @internal */\nexport function wrapJsx<T>(jsx: T): T {\n\tif (typeof jsx !== 'function') return jsx\n\n\treturn function (type: any, props: any, ...rest: any[]) {\n\t\tif (typeof type === 'function' && !(type instanceof Component)) {\n\t\t\ttype = proxyFunctionalComponent(type)\n\t\t} else if (type && typeof type === 'object') {\n\t\t\tif (type.$$typeof === ReactMemoType) {\n\t\t\t\ttype = proxyFunctionalComponent(type.type)\n\t\t\t} else if (type.$$typeof === ReactForwardRefType) {\n\t\t\t\ttype = proxyFunctionalComponent(type)\n\t\t\t}\n\t\t}\n\n\t\treturn jsx.call(jsx, type, props, ...rest)\n\t} as any as T\n}\n"],
+-  "mappings": ";AAyBA,SAAS,iBAAyC;AAClD,SAAS,aAAa;AAEtB,IAAM,gBAAgB,OAAO,IAAI,YAAY;AAC7C,IAAM,sBAAsB,OAAO,IAAI,mBAAmB;AAC1D,IAAM,gBAAgB,oBAAI,QAAwD;AAElF,SAAS,yBAAyBA,YAAmC;AACpE,QAAM,WAAW,cAAc,IAAIA,UAAS;AAC5C,MAAI;AAAU,WAAO;AACrB,QAAM,UAAU,MAAMA,UAAS;AAC/B,gBAAc,IAAIA,YAAW,OAAO;AACpC,SAAO;AACR;AAGO,SAAS,QAAW,KAAW;AACrC,MAAI,OAAO,QAAQ;AAAY,WAAO;AAEtC,SAAO,SAAU,MAAW,UAAe,MAAa;AACvD,QAAI,OAAO,SAAS,cAAc,EAAE,gBAAgB,YAAY;AAC/D,aAAO,yBAAyB,IAAI;AAAA,IACrC,WAAW,QAAQ,OAAO,SAAS,UAAU;AAC5C,UAAI,KAAK,aAAa,eAAe;AACpC,eAAO,yBAAyB,KAAK,IAAI;AAAA,MAC1C,WAAW,KAAK,aAAa,qBAAqB;AACjD,eAAO,yBAAyB,IAAI;AAAA,MACrC;AAAA,IACD;AAEA,WAAO,IAAI,KAAK,KAAK,MAAM,OAAO,GAAG,IAAI;AAAA,EAC1C;AACD;",
++  "sourcesContent": ["// This file was copied and adapted with thanks from the preactjs/preact repo.\n// https://github.com/preactjs/signals/blob/main/packages/react/src/index.ts\n\n// The MIT License (MIT)\n\n// Copyright (c) 2022-present Preact Team\n\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n\n// The above copyright notice and this permission notice shall be included in all\n// copies or substantial portions of the Software.\n\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n// SOFTWARE.\n\nimport { Component, type FunctionComponent } from 'react'\nimport { track } from './track.js'\n\nconst ReactMemoType = Symbol.for('react.memo') // https://github.com/facebook/react/blob/346c7d4c43a0717302d446da9e7423a8e28d8996/packages/shared/ReactSymbols.js#L30\nconst ReactForwardRefType = Symbol.for('react.forward_ref')\nconst ReactLazyType = Symbol.for('react.lazy')\nconst ProxyInstance = new WeakMap<FunctionComponent<any>, FunctionComponent<any>>()\n\nfunction proxyFunctionalComponent(Component: FunctionComponent<any>) {\n\tconst existing = ProxyInstance.get(Component)\n\tif (existing) return existing\n\tconst tracked = track(Component)\n\tProxyInstance.set(Component, tracked)\n\treturn tracked\n}\n\n/** @internal */\nexport function wrapJsx<T>(jsx: T): T {\n\tif (typeof jsx !== 'function') return jsx\n\n\treturn function (type: any, props: any, ...rest: any[]) {\n\t\tif (typeof type === 'function' && !(type instanceof Component)) {\n\t\t\ttype = proxyFunctionalComponent(type)\n\t\t} else if (type && typeof type === 'object') {\n\t\t\tif (type.$$typeof === ReactMemoType) {\n\t\t\t\ttype = proxyFunctionalComponent(type.type)\n\t\t\t} else if (type.$$typeof === ReactForwardRefType) {\n\t\t\t\ttype = proxyFunctionalComponent(type)\n\t\t\t} else if (type.$$typeof === ReactLazyType) {\n\t\t\t\ttype = proxyFunctionalComponent(type)\n\t\t\t}\n\t\t}\n\n\t\treturn jsx.call(jsx, type, props, ...rest)\n\t} as any as T\n}\n"],
++  "mappings": ";AAyBA,SAAS,iBAAyC;AAClD,SAAS,aAAa;AAEtB,IAAM,gBAAgB,OAAO,IAAI,YAAY;AAC7C,IAAM,sBAAsB,OAAO,IAAI,mBAAmB;AAC1D,IAAM,gBAAgB,OAAO,IAAI,YAAY;AAC7C,IAAM,gBAAgB,oBAAI,QAAwD;AAElF,SAAS,yBAAyBA,YAAmC;AACpE,QAAM,WAAW,cAAc,IAAIA,UAAS;AAC5C,MAAI;AAAU,WAAO;AACrB,QAAM,UAAU,MAAMA,UAAS;AAC/B,gBAAc,IAAIA,YAAW,OAAO;AACpC,SAAO;AACR;AAGO,SAAS,QAAW,KAAW;AACrC,MAAI,OAAO,QAAQ;AAAY,WAAO;AAEtC,SAAO,SAAU,MAAW,UAAe,MAAa;AACvD,QAAI,OAAO,SAAS,cAAc,EAAE,gBAAgB,YAAY;AAC/D,aAAO,yBAAyB,IAAI;AAAA,IACrC,WAAW,QAAQ,OAAO,SAAS,UAAU;AAC5C,UAAI,KAAK,aAAa,eAAe;AACpC,eAAO,yBAAyB,KAAK,IAAI;AAAA,MAC1C,WAAW,KAAK,aAAa,qBAAqB;AACjD,eAAO,yBAAyB,IAAI;AAAA,MACrC,WAAW,KAAK,aAAa,eAAe;AAC3C,eAAO,yBAAyB,IAAI;AAAA,MACrC;AAAA,IACD;AAEA,WAAO,IAAI,KAAK,KAAK,MAAM,OAAO,GAAG,IAAI;AAAA,EAC1C;AACD;",
+   "names": ["Component"]
+ }
